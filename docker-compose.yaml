@@ -1,0 +1,27 @@
+services:
+  cfddns:
+    container_name: cfdns
+    restart: 'unless-stopped'
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - CF_API_KEY=${CF_API_KEY}
+      - CF_ZONE_ID=${CF_ZONE_ID}
+      - CF_EMAIL=${CF_EMAIL}
+      - RECORD_NAME=${RECORD_NAME}
+      - RECORD_TYPE=${RECORD_TYPE}
+      - RECORD_PROXIED=${RECORD_PROXIED}
+      - LOG_LEVEL=${LOG_LEVEL}
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      args:
+        - CF_API_TOKEN=${CF_API_TOKEN}
+        - CF_API_KEY=${CF_API_KEY}
+        - CF_ZONE_ID=${CF_ZONE_ID}
+        - CF_EMAIL=${CF_EMAIL}
+        - RECORD_NAME=${RECORD_NAME}
+        - RECORD_TYPE=${RECORD_TYPE}
+        - RECORD_PROXIED=${RECORD_PROXIED}
+        - LOG_LEVEL=${LOG_LEVEL}
