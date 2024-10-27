@@ -25,22 +25,53 @@ class CFdns:
             api_key=os.getenv('CF_API_KEY'),
         )
         self.dns = self.client.dns.records
+        self.ipurls = [
+            'https://ipinfo.io/ip',
+            'https://ifconfig.me',
+        ]
 
     def __enter__(self):
-        self._check_target_exists()
-        return self
+        self.public_ip = self._public_ip()
+        if self.public_ip is False:
+            raise ValueError('could not get public IP')
+        else:
+            self._check_target_exists()
+            return self
 
     @debuggo
     def update_record_ifchanged(self):
-        if self._check_ips() is False:
-            self._update()
+        try:
+            if self._check_ips() is False:
+                self._update()
+        except ValueError as err:
+            self.log.warning(f'{err = }')
 
-    @property
     def _public_ip(self):
-        resp = requests.get('https://ipinfo.io/ip')
-        if resp.status_code == 200:
-            return resp.text
+        for url in self.ipurls:
+            try:
+                resp = requests.get(url)
+                if resp.status_code == 200:
+                    self.log.debug(f'used {url}')
+                    return resp.text 
+                else:
+                    self.log.warning(f'{url = } {resp.status_code = }')
+                    continue
+            except requests.exceptions.ReadTimeout as err:
+                self.log.warning(f'{err = }')
+                continue
+            except requests.exceptions.ConnectionError as err:
+                self.log.warning(f'{err = }')
+                continue
         else:
+            self.log.warning('could not get public IP')
+            return False
+
+    def _check_ips(self):
+        if self.target_record.content == self.public_ip:
+            self.log.debug(f'record IP matches public IP')
+            return True
+        else:
+            self.log.warning(f'record IP does not match public IP')
             return False
 
     @property
@@ -59,20 +90,12 @@ class CFdns:
             self.target_record = self.dns_records[os.getenv('RECORD_NAME')]
             self.log.debug(f'target record = {self.target_record.name}')
 
-    def _check_ips(self):
-        if self.target_record.content == self._public_ip:
-            self.log.debug(f'record IP matches public IP')
-            return True
-        else:
-            self.log.warning(f'record IP does not match public IP')
-            return False
-
     @debuggo
     def _create_record(self):
         self.log.info(f'creating DNS record {os.getenv("RECORD_NAME")}')
         self.dns.create(
             zone_id=os.getenv('CF_ZONE_ID'),
-            content=self._public_ip,
+            content=self.public_ip,
             name=os.getenv('RECORD_NAME'),
             type=os.getenv('RECORD_TYPE'),
             proxied=bool(int(os.getenv('RECORD_PROXIED'))),
@@ -84,7 +107,7 @@ class CFdns:
         self.dns.update(
             dns_record_id=self.target_record.id,
             zone_id=os.getenv('CF_ZONE_ID'),
-            content=self._public_ip,
+            content=self.public_ip,
             name=os.getenv('RECORD_NAME'),
             type=os.getenv('RECORD_TYPE'),
             proxied=bool(int(os.getenv('RECORD_PROXIED'))),
