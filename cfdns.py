@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-from cloudflare import Cloudflare
+import cloudflare as cf
 from clogger import log
 import requests
 import os
@@ -20,7 +20,7 @@ def debuggo(func):
 class CFdns:
     def __init__(self):
         self.log = log
-        self.client = Cloudflare(
+        self.client = cf.Cloudflare(
             api_email=os.getenv('CF_EMAIL'),
             api_key=os.getenv('CF_API_KEY'),
         )
@@ -34,6 +34,9 @@ class CFdns:
         self.public_ip = self._public_ip()
         if self.public_ip is False:
             raise ValueError('could not get public IP')
+        self.dns_records = self._dns_records()
+        if self.dns_records is False:
+            raise ValueError('Connection issue with cloudflar')
         else:
             self._check_target_exists()
             return self
@@ -74,10 +77,13 @@ class CFdns:
             self.log.warning(f'record IP does not match public IP')
             return False
 
-    @property
-    def dns_records(self):
-        records = self.dns.list(zone_id=os.getenv('CF_ZONE_ID'))
-        return {r.name: r for r in records.result}
+    def _dns_records(self):
+        try:
+            records = self.dns.list(zone_id=os.getenv('CF_ZONE_ID'))
+            return {r.name: r for r in records.result}
+        except cf.InternalServerError as err:
+            self.log.warning(f'{err = }')
+            raise ValueError('could not get records from cloudflar')
 
     @debuggo
     def _check_target_exists(self):
